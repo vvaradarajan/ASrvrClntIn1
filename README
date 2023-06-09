@@ -1,0 +1,23 @@
+This is for the article on server and client in one repo.
+In the normal design, a web application follows the same paradigm as client-server application. 
+The client handles the 'front-end' user interactions and is mostly concerned with user interface.
+The server is the 'back-end' and services requests from the front-end.
+
+The normal straight-forward way of implementing this is to code the Server separately, and the client separately.  This comes with costs: Separate Documentation of Server and Client, separate repositories, and issues with how the interaction of the client and server is supposed to work. In addition is today's resource starved environment, it is often a single person task to do both.
+
+A method that reduces these complexities is to have a single repository with the server and client code in separate folders. This allows the programmer to be able to view the client code/logic while working on the server code and vice-versa. This facilitates the development of convenient interfacing between the client and server, reduces bugs.  It also has advantages in deployment.  Very often the web application has a small audience and hosting both the server and client in one physical server makes deployment easy, and removes any 'version' mismatch type of issues.
+This also opens up an opportunity of centralizing client control, such as limiting the number of clients gracefully, keeping track of resources assigment/usage by each client etc. 
+It also reduces the number of 'ports' required to just 1 instead of the usual 2.
+
+Design: 
+Logical:
+a. The server is a normal back end server and has its own set of routes PLUS one route that serves the client.
+b. The client is a separate folder in the repo named 'client'. It is a javascript single page App.
+Physical:
+The server is implemented Using a python Sanic webserver, and the client is a Javascript Single Page App using lit-elements.
+
+Folder Structure:
+Server folder: Folder containing server code in Python.
+Client folder: Folder containing client code.
+
+Example: Room Reservation:
