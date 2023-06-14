@@ -13,10 +13,11 @@ def transcribe(audio,myurl='https://api.openai.com/v1/audio/transcriptions'):
 
 async def aiohttpTranscribe(audio,myurl='https://api.openai.com/v1/audio/transcriptions'):
     print(f'Using AioHttp')
-    OPENAI_API_KEY='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'
+    OPENAI_API_KEY='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'
     headers = {"Authorization":f'Bearer {OPENAI_API_KEY}'}
     data=aiohttp.FormData()
     data.add_field('model','whisper-1',content_type='multipart/form-data')
+    data.add_field('language','en',content_type='multipart/form-data')
     data.add_field('file', audio, filename='abc.mp3',
                         content_type='multipart/form-data')
 
