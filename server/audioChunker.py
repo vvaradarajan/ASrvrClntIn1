@@ -3,9 +3,16 @@ import numpy as np, asyncio
 import pydub 
 import io
 from testRequests import transcribe, aiohttpTranscribe
+from utils import pnp, createMp3
+import webrtcvad
+vad = webrtcvad.Vad()
 
 G={'sampleRate':8000,'chunkTime':0.02,'sampleWidth':2, 'dType': np.int16,
     'duration':5.5}
+
+async  def aWrite(fs,npArr):
+    mp3Recording = createMp3('out2.mp3', fs, npArr)
+    await aiohttpTranscribe(mp3Recording)
 
 class RingBuf:
     #stores np.ndarray in a circular buffer
@@ -15,7 +22,7 @@ class RingBuf:
         self.end=0
         self.length=size
         self.noOfVads=0
-        self.maxExtract=5 #extract a max of 5 entries
+        self.maxExtract=size #extract a max of 5 entries
         self.extract=np.zeros((self.maxExtract,),dtype=np.int16)
 
     def addAudio(self,monoNdArr):
@@ -49,6 +56,14 @@ class RingBuf:
             self.st = avl-fp
         else: self.st +=avl
         return self.extract
+
+    def getLength(self):
+        if self.end < self.st:
+            avl= self.length - (self.st - self.end)
+        else: avl=self.end-self.st
+        return avl
+
+
         
     def writeOut(self):
         print(f'st={self.st}, end={self.end}\n{self.ndArr}')
@@ -66,9 +81,12 @@ class RingBuf:
         mrb.addAudio(ndArr[0:5])
         print(f'4th extract = {mrb.extractAudio()}')
 
-
-
 class AudioChunker:
+    '''
+    This class handles sd-sounddevice and generates blocks of audio
+    using an async generator.
+    This should be a singleton.
+    '''
 
     def __init__(self):
         blockSize=int(G['sampleRate']*G['chunkTime'])
@@ -103,5 +121,69 @@ class AudioChunker:
                 indata, status = await q_in.get()
                 yield indata, status
 
-    if __name__=='__main__':
-        RingBuf.test()
+class TrancribeAudioChunker:
+    '''
+    This class createa a chunk of Audio to be sent for transcription.
+    Essentially this is for whisper which does not have streaming recognition.
+    Algorithm:
+    1. Use the RingBuffer
+    2. Use a state => inAudio (True if in chunk, False otherwise)
+    3. inChunk = True if 3 Nvad followed by vad
+    4. inChunk transition from True to False:
+        a. timeForTranscribe=5 seconds have gone by
+        b. chunks in RingBuffer exceeds Y
+    5. Do not send chunk to RingBuffer if:
+        a. inChunk=False
+        b. if the chunk is > nth Nvad
+    '''
+    def __init__(self):
+        #config
+        maxChunks=1000
+        timeForTranscribe=5
+        fs=G['sampleRate']
+        framesForTranscribe=timeForTranscribe*fs #can be less
+        NvadLead=3
+        ringBufSize=50000
+        #end config
+        #init
+        self.inChunk=False
+        self.maxChunks=maxChunks
+        self.framesForTranscribe=framesForTranscribe
+        self.fs=fs
+        #self.chunksForTranscribe=chunksForTranscribe #can be less
+        self.NvadLead=NvadLead
+        self.rb = RingBuf(ringBufSize)
+        self.NvadCnt=0
+        self.nVadsSkipped=0
+
+
+    def transcribe():
+        aData = self.rb.extractAudio()
+        pnp(aData,'aData')
+        pnp(self.nVadsSkipped,'nVadsSkipped')
+        asyncio.create_task(aWrite(self.fs,aData))
+
+    def putInBuf(self,chunk):
+        notVad = not vad.is_speech(chunk.tobytes(),self.fs)
+        if self.inChunk and self.NvadCnt < self.NvadLead:
+            self.rb.addAudio(chunk)
+        else: self.nVadsSkipped +=1
+        self.NvadCnt = self.NvadCnt + 1 if notVad else 0
+        #print (f'rbLen={self.rb.getLength()}')
+        if self.rb.getLength() >=  self.framesForTranscribe:
+            self.transcribe()
+
+
+    @staticmethod
+    async def test():
+        tac=TrancribeAudioChunker()
+        tac.inChunk=True
+        ac=AudioChunker()
+        async for result,status in ac.inputstream_generator(dtype=np.int16,blocksize=240):
+            #pnp(result[:,0],'result')
+            tac.putInBuf(result[:,0]) #use mono channel
+
+
+if __name__=='__main__':
+    #RingBuf.test()
+    asyncio.run(TrancribeAudioChunker.test())
