@@ -1,7 +1,8 @@
 import sounddevice as sd
 import numpy as np, asyncio
 import pydub 
-import io
+import io, atexit, os
+import aiofiles
 from testRequests import transcribe, aiohttpTranscribe
 from utils import pnp, createMp3
 import webrtcvad
@@ -10,9 +11,11 @@ vad = webrtcvad.Vad()
 G={'sampleRate':8000,'chunkTime':0.02,'sampleWidth':2, 'dType': np.int16,
     'duration':5.5}
 
-async  def aWrite(fs,npArr):
-    mp3Recording = createMp3('out2.mp3', fs, npArr)
-    await aiohttpTranscribe(mp3Recording)
+async  def aWrite(fs,npArr,transcriptFile,reason='None'):
+    mp3Recording = createMp3('out2.mp3', fs, npArr,reason)
+    txt = await aiohttpTranscribe(mp3Recording,reason=reason)
+    await transcriptFile.write(txt)
+
 
 class RingBuf:
     #stores np.ndarray in a circular buffer
@@ -22,7 +25,7 @@ class RingBuf:
         self.end=0
         self.length=size
         self.noOfVads=0
-        self.maxExtract=size #extract a max of 5 entries
+        self.maxExtract=size #extract only this or less
         self.extract=np.zeros((self.maxExtract,),dtype=np.int16)
 
     def addAudio(self,monoNdArr):
@@ -43,10 +46,7 @@ class RingBuf:
 
     def extractAudio(self):
         #For now Go from st to end
-        self.extract[:]=0
-        if self.end < self.st:
-            avl= self.length - (self.st - self.end)
-        else: avl=self.end-self.st
+        avl=self.getLength()
         if avl > self.maxExtract: avl=self.maxExtract
         if avl==0:return self.extract
         fp=avl if self.length-self.st > avl else self.length-self.st
@@ -55,7 +55,7 @@ class RingBuf:
             self.extract[fp:avl]=self.ndArr[0:avl-fp]
             self.st = avl-fp
         else: self.st +=avl
-        return self.extract
+        return self.extract[:avl]
 
     def getLength(self):
         if self.end < self.st:
@@ -139,11 +139,14 @@ class TrancribeAudioChunker:
     def __init__(self):
         #config
         maxChunks=1000
-        timeForTranscribe=5
+        timeForTranscribe=10
         fs=G['sampleRate']
         framesForTranscribe=timeForTranscribe*fs #can be less
-        NvadLead=3
-        ringBufSize=50000
+        NvadLead=3  #if there is a sequence of Nvad's more than this they are not sent to transcibe
+        NvadTimeForTranscribe = 1.5 # Transcribe is triggered if this occurs
+        ringBufTime=30 #Max seconds of audio is kept in buffer
+        ignoreShortAudioTime=0.3 #ignore audio segements less that this seconds
+        outDir='/tmp/data'
         #end config
         #init
         self.inChunk=False
@@ -152,34 +155,72 @@ class TrancribeAudioChunker:
         self.fs=fs
         #self.chunksForTranscribe=chunksForTranscribe #can be less
         self.NvadLead=NvadLead
-        self.rb = RingBuf(ringBufSize)
+        self.rb = RingBuf(ringBufTime*self.fs)
+        self.NvadsForTranscribe=int(NvadTimeForTranscribe*self.fs/240)
         self.NvadCnt=0
         self.nVadsSkipped=0
+        self.forceTranscribeCount=0
+        self.NvadsForTranscribeCount=0
+        self.ignoreShortAudioBlocks = ignoreShortAudioTime*self.fs
+        self.outDir = outDir
+        print(self)
+
+    async def asyncInit(self):
+        tFNm=f'{self.outDir}/transcript.txt'
+        self.transcriptFile = await aiofiles.open(tFNm,mode ='w')
+        print(f'TranscriptFile: {tFNm} created')
+        self.transcriptFile.close()
+        atexit.register(os.unlink,tFNm)
+
+    def __str__(self):
+        return (f'TranscribeAudioChunker:\nsamplerate={self.fs}, NvadsForTranscribe= {self.NvadsForTranscribe}, NvadsForTranscribeCount= {self.NvadsForTranscribeCount}\n'
+                f'framesForTranscribe= {self.framesForTranscribe}, forceTranscribeCount= {self.forceTranscribeCount} ')
 
 
-    def transcribe():
-        aData = self.rb.extractAudio()
+    def transcribe(self,aData,reason=None):
         pnp(aData,'aData')
         pnp(self.nVadsSkipped,'nVadsSkipped')
-        asyncio.create_task(aWrite(self.fs,aData))
+        asyncio.create_task(aWrite(self.fs,aData,transcriptFile=self.transcriptFile,reason=reason))
 
     def putInBuf(self,chunk):
+        self.forceTranscribeCount +=len(chunk)
         notVad = not vad.is_speech(chunk.tobytes(),self.fs)
+        if notVad:
+            self.NvadsForTranscribeCount +=1
+        else: self.NvadsForTranscribeCount = 0
         if self.inChunk and self.NvadCnt < self.NvadLead:
             self.rb.addAudio(chunk)
-        else: self.nVadsSkipped +=1
+        else: 
+            self.nVadsSkipped +=1
         self.NvadCnt = self.NvadCnt + 1 if notVad else 0
-        #print (f'rbLen={self.rb.getLength()}')
-        if self.rb.getLength() >=  self.framesForTranscribe:
-            self.transcribe()
+        length=self.rb.getLength()
+        reason = ('length' if ( length >=  self.framesForTranscribe)
+                  else 'time' if (self.forceTranscribeCount >= self.framesForTranscribe)
+                  else f'Nvads_{length}_{self.NvadsForTranscribeCount}_' if (self.NvadsForTranscribeCount > self.NvadsForTranscribe)
+                  else None)
+        if reason:
+            print(f'length: current: {length}, limit: {self.framesForTranscribe}\n'
+                  f'time: current: {self.forceTranscribeCount}, limit: {self.framesForTranscribe}\n'
+                  f'Nvads: current: {self.NvadsForTranscribeCount}, limit: {self.NvadsForTranscribe}'
+                  )
+            data = self.rb.extractAudio()
+            if length > self.ignoreShortAudioBlocks:
+                self.transcribe(data,reason)
+            else:
+                print(f'***Audio too short - ignored')
+            self.forceTranscribeCount=0
+            self.NvadsForTranscribeCount=0
 
 
     @staticmethod
     async def test():
         tac=TrancribeAudioChunker()
+        await tac.asyncInit()
         tac.inChunk=True
         ac=AudioChunker()
-        async for result,status in ac.inputstream_generator(dtype=np.int16,blocksize=240):
+        blocksize=int(tac.fs*0.03)
+        print(f'tac blocksize= {blocksize}')
+        async for result,status in ac.inputstream_generator(dtype=np.int16,blocksize=blocksize):
             #pnp(result[:,0],'result')
             tac.putInBuf(result[:,0]) #use mono channel
 

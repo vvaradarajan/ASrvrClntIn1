@@ -11,7 +11,9 @@ def pnp(v,label=''):
             print(f'{label} => type:{type(v)},value={v}')
     else: print(f'{label} => type:{type(v)}, **cannot print details**')
 
-def createMp3(f,sr,x):
+debugMp3i=1
+def createMp3(f,sr,x,reason):
+    global debugMp3i
     """numpy array to MP3"""
     channels = 2 if (x.ndim == 2 and x.shape[1] == 2) else 1
     #pydub takes int16 audio => convert if needed
@@ -22,7 +24,9 @@ def createMp3(f,sr,x):
         y = np.int16(x)
     song = pydub.AudioSegment(y.tobytes(), frame_rate=sr, sample_width=2, channels=channels)
     memoryBuff = io.BytesIO()
-    #song.export(f, format="mp3", bitrate="320k")
+    if debugMp3i:
+        song.export(f'/tmp/data/{reason}{str(debugMp3i)}.mp3', format="mp3")
+        debugMp3i +=1
     song.export(memoryBuff,format='mp3')
     pnp(memoryBuff,'memoryBuff')
     return memoryBuff

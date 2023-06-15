@@ -4,8 +4,8 @@ import numpy as np, asyncio
 import pydub , webrtcvad
 import io
 from testRequests import transcribe, aiohttpTranscribe
-from audioChunker import AudioChunker,T
-from utils import pnp
+from audioChunker import AudioChunker,TrancribeAudioChunker
+from utils import pnp,createMp3
 #config
 duration = 5.5  # seconds
 fs=8000
