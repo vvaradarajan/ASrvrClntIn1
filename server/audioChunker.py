@@ -3,7 +3,7 @@ import numpy as np, asyncio
 import pydub 
 import io, atexit, os
 import aiofiles
-from testRequests import transcribe, aiohttpTranscribe
+from whisperAio import transcribe, aiohttpTranscribe
 from utils import pnp, createMp3
 import webrtcvad
 vad = webrtcvad.Vad()
@@ -167,10 +167,10 @@ class TrancribeAudioChunker:
 
     async def asyncInit(self):
         tFNm=f'{self.outDir}/transcript.txt'
-        self.transcriptFile = await aiofiles.open(tFNm,mode ='w')
+        self.transcriptFile = await aiofiles.open(tFNm,mode ='a')
         print(f'TranscriptFile: {tFNm} created')
         self.transcriptFile.close()
-        atexit.register(os.unlink,tFNm)
+        atexit.register(self.transcriptFile.close)
 
     def __str__(self):
         return (f'TranscribeAudioChunker:\nsamplerate={self.fs}, NvadsForTranscribe= {self.NvadsForTranscribe}, NvadsForTranscribeCount= {self.NvadsForTranscribeCount}\n'
