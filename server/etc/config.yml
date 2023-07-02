@@ -1,0 +1,20 @@
+#config for asr using whisper API
+openai:
+    openAiStub: false #save money or not!
+    whisperKey: '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'
+audio:
+    sampleRate: 16000
+    chunkTime: 0.03 # 10,20,30 ms for vad detection
+    sampleWidth: 2 #np.int16 width
+    dType : 'np.int16'
+    channels: 2 #2-stereo or 1-mono. we only use one channel for Voice now
+
+whisperApiAlg: #algorithm parameters
+    duration: 5.5 #max audio time for transcription 
+    debugMp3i: true #writes out audio and transcript to debugDir
+    debugDir: '/home/vv/dbg'
+    NvadLead: 3 # max nvad sequence to send to transcribe. Larger nvad sequences are reduced to this
+    BufferTime: 30 #Max seconds of audio is kept in buffer
+    ignoreShortAudioTime: 0.3 #ignore audio segements less that this seconds
+
+
