@@ -1,0 +1,76 @@
+
+2. Clear mail
+3. open Ally account 
+4. Review presto contract and ask for vesting
+
+6. Call Accountant on cyborgops - oct 12
+7. Setup Auto pay for Kartik - done check on slc around oct 6
+7b. Do this month transfer to SLC
+8. Pay airtel bill:
+Landline number/DSL_ID: 04413982750_dsl
+Account number: 20007993683 (some other numbers 277533085
+Associated cell number (Manni's):  +91 9003074150
+
+9. Design Slider
+10. Write article on Approx vs Accuracy
+11. Pay the LA County taxes
+12. Estimate and pay capital gains taxes - done 30K
+13. Breathe:
+1. make the global module take a config file and return G 
+2. ticks-min
+
+
+
+
+x. Postpone jury duty: JID: 234557746, PIN 6974, Grp No 13, Start date: 10-23-2023
+Call from Friday 10/20 after 7 PM. Complete orientation by Oct 19th or so
+
+
+
+
+T-Mobilw acct: 965484054, Pin: 
+
+
+
+Done:
+d. Kartik call SLS at (720) 241-7200
+1. Send mail to McCourt (Karen)
+
+https://www.gaf.com/en-us/roof-design/gaf-home-remodeler
+https://www.malarkeyroofing.com/products/shingles-overview/highlander-ar-shingles
+https://www.certainteed.com/residential-roofing/products
+
+3. sbi: acct: 36495340264 , cif: 89592615962, bank brnch: 03351
+SBI userID is: 120074708/ZAQ!2wsx123  PPK numberis UD95600839
+Profile password: Datsun1984!
+
+11. Scan the FMLA signed papers
+5. Website
+
+0973101114027
+CNRB0000973
+
+passport: 593898877
+
+Tommorow:
+
+Restarting services after a shutdown:
+1. Services are on both slash and on r2d2.friendlyCyborg.com
+2. To find service names: ls /etc/systemd/services
+
+What I started:
+On r2d2.friendlyCyborg.com:
+sudo service dbService start  # Checked status and found permission error on /tmp/_8007,txt.. removed and restarted and it is ok
+
+On slash:
+sudo service config start
+sudo service slash8008 start
+
+
+Note: Always check status and logs of services: 
+sudo service <name> status
+sudo journalctl -u <name> -f #gives running status when you start/stop in another window
+
+transunion 1-800-916-8800
+
+

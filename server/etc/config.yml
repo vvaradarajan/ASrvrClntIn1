@@ -1,7 +1,9 @@
 #config for asr using whisper API
 openai:
     openAiStub: false #save money or not!
-    whisperKey: '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'
+    oldWhisperKey: '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'
+    whisperKey: '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'
+    whisperApiUrl: 'https://api.openai.com/v1/audio/transcriptions'
 audio:
     sampleRate: 16000
     chunkTime: 0.03 # 10,20,30 ms for vad detection
